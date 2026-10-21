@@ -1,0 +1,47 @@
+name: Sync upstream
+
+# 每天北京时间 04:30 从上游 chthollyphile/folia-major 合并 main。
+# 有新提交时推送，并手动触发 Deploy workflow
+#（用 GITHUB_TOKEN 推的提交不会自动触发其他 workflow，所以这里显式 dispatch）。
+
+on:
+  schedule:
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream main
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/chthollyphile/folia-major.git
+          git fetch upstream main
+          BEFORE=$(git rev-parse HEAD)
+          git merge --no-edit FETCH_HEAD
+          AFTER=$(git rev-parse HEAD)
+          if [ "$BEFORE" != "$AFTER" ]; then
+            git push origin main
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+            echo "Upstream updates merged: $BEFORE -> $AFTER"
+          else
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date."
+          fi
+
+      - name: Trigger deploy
+        if: steps.merge.outputs.updated == 'true'
+        run: gh workflow run deploy.yml --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}
