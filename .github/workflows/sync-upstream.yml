@@ -42,6 +42,7 @@ jobs:
 
       - name: Trigger deploy
         if: steps.merge.outputs.updated == 'true'
-        run: gh workflow run deploy.yml --ref main
+        # 显式指定目标仓库：工作区存在 upstream remote 时，gh 会把上游仓库当作目标（上游没有 deploy.yml），导致 404。
+        run: gh workflow run deploy.yml --ref main --repo angelia813/folia-major
         env:
           GH_TOKEN: ${{ github.token }}
