@@ -1,0 +1,60 @@
+# 在 macOS runner 上生成 Folia iOS 壳的未签名 IPA（SideStore 自签侧载试用）
+name: iOS Unsigned IPA
+
+on:
+  push:
+    branches: [capacitor-ios]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Placeholder web dir (shell loads the live site via server.url)
+        run: |
+          mkdir -p dist
+          printf '<!doctype html><html><head><meta charset="utf-8"><title>Folia</title></head><body></body></html>' > dist/index.html
+
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Enable background audio
+        run: |
+          PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Print :UIBackgroundModes" "$PLIST"
+
+      - name: Sync web assets and config
+        run: npx cap sync ios
+
+      - name: Build unsigned app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products -name '*.app' -type d | head -1)
+          echo "App bundle: $APP"
+          rm -rf Payload Folia-unsigned.ipa
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qry Folia-unsigned.ipa Payload
+          ls -la Folia-unsigned.ipa
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Folia-unsigned-ipa
+          path: Folia-unsigned.ipa
+          if-no-files-found: error
