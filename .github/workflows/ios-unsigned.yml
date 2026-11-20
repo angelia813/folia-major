@@ -28,6 +28,17 @@ jobs:
       - name: Add iOS platform
         run: npx cap add ios
 
+      - name: Replace app icon with Folia color icon
+        run: |
+          ICONSET=$(find ios/App/App/Assets.xcassets -name 'AppIcon.appiconset' -type d | head -1)
+          echo "Icon set: $ICONSET"
+          ls -la "$ICONSET"
+          for f in "$ICONSET"/*.png; do
+            sips -z 1024 1024 build/icon-color.png --out "$f" >/dev/null
+            echo "Replaced: $f"
+            sips -g pixelWidth -g pixelHeight "$f"
+          done
+
       - name: Enable background audio
         run: |
           PLIST=ios/App/App/Info.plist
