@@ -38,6 +38,17 @@ jobs:
       - name: Sync web assets and config
         run: npx cap sync ios
 
+      - name: Resolve Swift packages (fresh cache, retry once)
+        run: |
+          for attempt in 1 2; do
+            rm -rf ~/Library/Caches/org.swift.swiftpm ~/.swiftpm
+            if xcodebuild -project ios/App/App.xcodeproj -scheme App -derivedDataPath build -resolvePackageDependencies; then
+              break
+            fi
+            echo "resolve attempt $attempt failed, retrying with cleared cache"
+            sleep 5
+          done
+
       - name: Build unsigned app
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
